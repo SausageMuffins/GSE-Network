@@ -14,7 +14,7 @@ class GSENet(nn.Module):
         super(GSENet, self).__init__()
 
         # Initial Convolutional Layer
-        self.conv1 = nn.Conv2d(in_channels=2, out_channels=16, kernel_size=(7, 7), padding=(3, 3))
+        self.conv1 = nn.Conv2d(in_channels=4, out_channels=16, kernel_size=(7, 7), padding=(3, 3))
 
         # Downsampling Segment
         self.eblock1 = EBlock(Cin=16, Cout=32, Stime=1, Sfreq=2, Dtime=False)
@@ -51,13 +51,12 @@ class GSENet(nn.Module):
         ref_stft = torch.stft(ref_mic, n_fft=320, hop_length=150, win_length=320, window=torch.hann_window(320), return_complex=True)  # Shape: [batch, freq, time]
         beam_stft = torch.stft(beamformed, n_fft=320, hop_length=150, win_length=320, window=torch.hann_window(320), return_complex=True)
 
-        # Convert complex STFT to real-valued representation
-        ref_real_imag = torch.cat([ref_stft.real, ref_stft.imag], dim=1)  # Shape: [batch, 2*freq, time]
-        beam_real_imag = torch.cat([beam_stft.real, beam_stft.imag], dim=1)
+        # Combine real and imaginary components into 2-channel representation
+        ref_real_imag = torch.stack([ref_stft.real, ref_stft.imag], dim=1)  # Shape: [batch, 2, freq, time]
+        beam_real_imag = torch.stack([beam_stft.real, beam_stft.imag], dim=1)  # Shape: [batch, 2, freq, time]
 
         # Concatenate STFT inputs along channel dimension
-        x = torch.cat([ref_real_imag, beam_real_imag], dim=1)  # Shape: [batch, 4*freq, time]
-        skip0 = x  # Save skip connection before applying initial convolution
+        x = torch.cat([ref_real_imag, beam_real_imag], dim=1)  # Shape: [batch, 4, freq, time]
 
         # Apply initial convolution
         x = F.leaky_relu(self.conv1(x), negative_slope=0.3)
@@ -84,7 +83,7 @@ class GSENet(nn.Module):
         x = self.dblock4(x) + skip2  # Add skip connection from eblock1
 
         x = self.dblock5(x) + skip1  # Add skip connection from initial conv
-        x = self.up_conv2(x) + skip0  # Add skip connection from input STFT
+        x = self.up_conv2(x)  # Final output
 
         # Inverse STFT
         x = torch.istft(
