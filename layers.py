@@ -1,130 +1,212 @@
+# layers.py
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# NOTE:
-# The inputs are spectrograms with time (horizontal) and frequency (vertical) dimensions.
-# Padding: 
-    # - there is padding to account for causality in the temporal dimension - ensuring convolutions over t-2, t-1 and t only.
-    # - there is also padding to maintain frequency dimensions in the convolutions.
-
 class TDBlock(nn.Module):
     """
-    Time Dilation Block (TDblock):
-    Sequential block containing two convolutional layers with different dilation factors.
+    Time Dilation Block (TDBlock):
+    Applies two causal convolutions with increasing dilation in the *time* dimension.
+    (We assume the tensor shape is [B, C, Freq, Time], so dilation should affect
+    the last dimension if we want to expand the temporal receptive field.)
     
     Args:
-        Cout (int): Number of output channels of the previous layer.
+        Cout (int): Number of output channels.
     """
     def __init__(self, Cout):
         super(TDBlock, self).__init__()
-        self.dilated_conv1 = nn.Conv2d(in_channels=Cout, out_channels=Cout, kernel_size=(3, 3), dilation=(3, 1), padding=(2, 1))  # Causal padding
-        self.dilated_conv2 = nn.Conv2d(in_channels=Cout, out_channels=Cout, kernel_size=(3, 3), dilation=(9, 1), padding=(8, 1))  # Causal padding
+        
+        # We set dilation so that the second dimension (Freq) remains 1
+        # and the third dimension (Time) uses 3, then 9.
+        # Similarly, padding is adjusted to preserve causal coverage in time.
+        # The kernel_size=(3, 3) means: (Freq=3, Time=3).
+        
+        self.dilated_conv1 = nn.Conv2d(
+            in_channels=Cout,
+            out_channels=Cout,
+            kernel_size=(3, 3),     # (Freq=3, Time=3)
+            dilation=(1, 3),        # Dilate only the time dimension
+            padding=(1, 3)          # Enough padding in freq=1, time=3 to keep size
+        )
+        
+        self.dilated_conv2 = nn.Conv2d(
+            in_channels=Cout,
+            out_channels=Cout,
+            kernel_size=(3, 3),
+            dilation=(1, 9),        # Larger dilation in the time dimension
+            padding=(1, 9)
+        )
 
     def forward(self, x):
         x = F.leaky_relu(self.dilated_conv1(x), negative_slope=0.3)
         x = F.leaky_relu(self.dilated_conv2(x), negative_slope=0.3)
         return x
 
+
 class EBlock(nn.Module):
     """
     Encoder Block (EBlock):
-    A block with a skip connection and optional time dilation block.
+    A block with a skip connection and optional TDBlock.
+    The shape is [B, C, Freq, Time]. We map:
+        - Sfreq -> stride in the freq dimension (H)
+        - Stime -> stride in the time dimension (W)
 
     Args:
-        Cin (int): Number of input channels.
+        Cin (int):  Number of input channels.
         Cout (int): Number of output channels.
-        Stime (int): Temporal stride.
-        Sfreq (int): Frequency stride.
-        Dtime (bool): Whether to include the Time Dilation Block.
+        Stime (int): Stride factor in the time dimension.
+        Sfreq (int): Stride factor in the freq dimension.
+        Dtime (bool): Whether to use the TDBlock.
     """
     def __init__(self, Cin, Cout, Stime, Sfreq, Dtime):
         super(EBlock, self).__init__()
         self.use_tdb = Dtime
 
-        # First causal convolutional layer
-        self.conv1 = nn.Conv2d(in_channels=Cin, out_channels=Cin, kernel_size=(3, 3), padding=(2, 1))  # Causal padding
+        # First causal conv
+        # kernel_size=(3,3), padding=(1,1) => "same-like" for freq & time
+        self.conv1e = nn.Conv2d(
+            in_channels=Cin,
+            out_channels=Cin,
+            kernel_size=(3, 3),
+            padding=(1, 1)
+        )
 
-        # Time Dilation Block
+        # Optional Time Dilation Block
         if self.use_tdb:
             self.time_dilation = TDBlock(Cin)
 
-        # Second causal convolutional layer with stride
-        self.conv2 = nn.Conv2d(
+        # Second convolution with stride
+        # IMPORTANT: If our shape is [B, C, Freq, Time], we want:
+        #            stride=(Sfreq, Stime)
+        kernel_size = (3, 3)
+        stride = (Sfreq, Stime)
+        padding = (1, 1)
+
+        self.conv2e = nn.Conv2d(
             in_channels=Cin,
             out_channels=Cout,
-            kernel_size=(max(3, 2 * Stime), max(3, 2 * Sfreq)),
-            stride=(Stime, Sfreq),
-            padding=(max(3, 2 * Stime) - 1, max(3, 2 * Sfreq) - 1),  # Causal padding
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding
         )
 
+        # Skip conv to match shapes if needed
+        self.skip_conv = None
+        if (Stime != 1 or Sfreq != 1) or (Cin != Cout):
+            self.skip_conv = nn.Conv2d(
+                in_channels=Cin,
+                out_channels=Cout,
+                kernel_size=1,
+                stride=stride,
+                padding=0
+            )
+
     def forward(self, x):
-        # Skip connection input
         skip = x
 
-        # First convolution
-        x = F.leaky_relu(self.conv1(x), negative_slope=0.3)
+        # First conv
+        x = F.leaky_relu(self.conv1e(x), negative_slope=0.3)
 
-        # Time Dilation Block
+        # Optional TDBlock
         if self.use_tdb:
             x = self.time_dilation(x)
 
-        # Second convolution with stride
-        x = self.conv2(x)
+        # Second conv with stride
+        x = self.conv2e(x)
 
-        # Add skip connection
-        x += skip
+        # Skip path
+        if self.skip_conv is not None:
+            skip = self.skip_conv(skip)
 
+        # Combine
+        x = x + skip
         return x
+
+# layers.py
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 class DBlock(nn.Module):
     """
     Decoder Block (DBlock):
-    A block symmetric to the Encoder Block (EBlock) with a skip connection and optional time dilation block.
+    Symmetric to the EBlock, but uses transposed convolutions to upsample
+    [B, C, freq, time]. For stride=(Sfreq, Stime):
+        - Sfreq upscales the freq dimension,
+        - Stime upscales the time dimension.
 
     Args:
-        Cin (int): Number of input channels.
+        Cin (int):  Number of input channels.
         Cout (int): Number of output channels.
-        Stime (int): Temporal stride.
-        Sfreq (int): Frequency stride.
+        Stime (int): Upsampling factor in the time dimension.
+        Sfreq (int): Upsampling factor in the freq dimension.
         Dtime (bool): Whether to include the Time Dilation Block.
     """
-    def __init__(self, Cin, Cout, Stime, Sfreq, Dtime):
+    def __init__(self, Cin, Cout, Stime, Sfreq, Dtime=False):
         super(DBlock, self).__init__()
         self.use_tdb = Dtime
-
-        # First causal convolutional layer with stride
-        self.conv1 = nn.Conv2d(
+        
+        # First "causal" convolution (no stride), analogous to conv1e in EBlock.
+        self.conv1d = nn.Conv2d(
             in_channels=Cin,
-            out_channels=Cout,
-            kernel_size=(max(3, 2 * Stime), max(3, 2 * Sfreq)),
-            stride=(Stime, Sfreq),
-            padding=(max(3, 2 * Stime) - 1, max(3, 2 * Sfreq) - 1),  # Causal padding - maintain causality (current and past time frames) + dimensionality (freq)
+            out_channels=Cin,
+            kernel_size=(3, 3),
+            padding=(1, 1)   # Keep freq/time dimension the same size
         )
 
-        # Time Dilation Block
+        # Optional time dilation
         if self.use_tdb:
-            self.time_dilation = TDBlock(Cout)
+            self.time_dilation = TDBlock(Cin)  # TDBlock is assumed defined in this file
 
-        # Second causal convolutional layer
-        self.conv2 = nn.Conv2d(
-            in_channels=Cout, out_channels=Cout, kernel_size=(3, 3), padding=(2, 1))  # Causal padding
+        # Transposed conv for main path upsampling
+        # We interpret stride=(Sfreq, Stime) since dimension order is [B, C, freq, time].
+        kernel_size = (3, 3)
+        stride = (Sfreq, Stime)
+        padding = (1, 1)        # So that shape roughly doubles when stride=2
+        output_padding = (0, 0) # Often zero if we want exact doubling from EBlock
+
+        self.deconv2d = nn.ConvTranspose2d(
+            in_channels=Cin,
+            out_channels=Cout,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding
+        )
+
+        # Skip path: if shape or channel count differs, we match them via a 1×1 transposed conv
+        self.skip_conv = None
+        if (Cin != Cout) or (Sfreq != 1 or Stime != 1):
+            self.skip_conv = nn.ConvTranspose2d(
+                in_channels=Cin,
+                out_channels=Cout,
+                kernel_size=1,
+                stride=stride,
+                padding=0,
+                output_padding=output_padding
+            )
 
     def forward(self, x):
-        # Skip connection input
+        # Save the skip tensor before transformations
         skip = x
+        
+        # First causal conv
+        x = F.leaky_relu(self.conv1d(x), negative_slope=0.3)
 
-        # First convolution with stride
-        x = F.leaky_relu(self.conv1(x), negative_slope=0.3)
-
-        # Time Dilation Block
+        # Optional TDBlock
         if self.use_tdb:
             x = self.time_dilation(x)
 
-        # Second convolution
-        x = self.conv2(x)
+        # Main path upsampling
+        x = self.deconv2d(x)
 
-        # Add skip connection
-        x += skip
+        # Skip path, if needed
+        if self.skip_conv is not None:
+            skip = self.skip_conv(skip)
 
+        # Combine
+        x = x + skip
+        print("DBlock output shape:", x.shape)
         return x
