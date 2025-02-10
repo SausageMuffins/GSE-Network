@@ -9,3 +9,5 @@ soundfile>=0.10.0
 pyroomacoustics>=0.6.0
 tqdm>=4.64.0
 wandb>=0.15.0    # Optional for logging and experiment tracking
+pytorch-lightning
+google-cloud

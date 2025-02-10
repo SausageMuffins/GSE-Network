@@ -3,6 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from layers import EBlock, TDBlock, DBlock
 
+def center_crop(tensor, target_shape):
+    _, _, h, w = tensor.shape
+    target_h, target_w = target_shape
+    dh = (h - target_h) // 2
+    dw = (w - target_w) // 2
+    return tensor[:, :, dh:dh+target_h, dw:dw+target_w]
+
 class GSENet(nn.Module):
     """
     A U-Net-like architecture for speech enhancement using causal convolutions,
@@ -37,7 +44,7 @@ class GSENet(nn.Module):
         self.eblock4 = EBlock(Cin=48,  Cout=96, Stime=1, Sfreq=2, Dtime=True)
         self.eblock5 = EBlock(Cin=96,  Cout=96, Stime=1, Sfreq=2, Dtime=True)
 
-        print("Downsampled")
+        # print("Downsampled")
 
         # Bottleneck: reduce channels to 48 before a TDBlock
         self.conv2 = nn.Conv2d(
@@ -128,12 +135,12 @@ class GSENet(nn.Module):
         skip6 = self.eblock5(skip5)
 
         # Debug shapes if needed
-        print(f"skip1: {skip1.shape}")
-        print(f"skip2: {skip2.shape}")
-        print(f"skip3: {skip3.shape}")
-        print(f"skip4: {skip4.shape}")
-        print(f"skip5: {skip5.shape}")
-        print(f"skip6: {skip6.shape}")
+        # print(f"skip1: {skip1.shape}")
+        # print(f"skip2: {skip2.shape}")
+        # print(f"skip3: {skip3.shape}")
+        # print(f"skip4: {skip4.shape}")
+        # print(f"skip5: {skip5.shape}")
+        # print(f"skip6: {skip6.shape}")
 
         # ----- 4) Bottleneck -----
         x = F.leaky_relu(self.conv2(skip6), negative_slope=0.3)
@@ -141,13 +148,36 @@ class GSENet(nn.Module):
 
         # ----- 5) Decoder -----
         x = F.leaky_relu(self.up_conv1(x), negative_slope=0.3)
+        # Ensure shapes match for addition with skip6
+        if x.shape[2:] != skip6.shape[2:]:
+            x = center_crop(x, skip6.shape[2:])
         x = x + skip6
 
-        x = self.dblock1(x) + skip5
-        x = self.dblock2(x) + skip4
-        x = self.dblock3(x) + skip3
-        x = self.dblock4(x) + skip2
-        x = self.dblock5(x) + skip1
+        x = self.dblock1(x)
+        if x.shape[2:] != skip5.shape[2:]:
+            x = center_crop(x, skip5.shape[2:])
+        x = x + skip5
+
+        x = self.dblock2(x)
+        if x.shape[2:] != skip4.shape[2:]:
+            x = center_crop(x, skip4.shape[2:])
+        x = x + skip4
+
+        x = self.dblock3(x)
+        if x.shape[2:] != skip3.shape[2:]:
+            x = center_crop(x, skip3.shape[2:])
+        x = x + skip3
+
+        x = self.dblock4(x)
+        if x.shape[2:] != skip2.shape[2:]:
+            x = center_crop(x, skip2.shape[2:])
+        x = x + skip2
+
+        x = self.dblock5(x)
+        if x.shape[2:] != skip1.shape[2:]:
+            x = center_crop(x, skip1.shape[2:])
+        x = x + skip1
+
 
         # Final 2D conv => [B,2,Freq,Time]
         x = self.up_conv2(x)
@@ -157,7 +187,7 @@ class GSENet(nn.Module):
         x = x.permute(0, 2, 3, 1).contiguous() # contiguous() needed for the last dimension
         x = torch.view_as_complex(x) # change to complex tensor for istft
 
-        print(f"Final STFT shape before iSTFT: {x.shape}")
+        # print(f"Final STFT shape before iSTFT: {x.shape}")
 
         x = torch.istft(
             x,

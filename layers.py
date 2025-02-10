@@ -123,12 +123,6 @@ class EBlock(nn.Module):
         x = x + skip
         return x
 
-# layers.py
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 class DBlock(nn.Module):
     """
     Decoder Block (DBlock):
@@ -208,5 +202,5 @@ class DBlock(nn.Module):
 
         # Combine
         x = x + skip
-        print("DBlock output shape:", x.shape)
+
         return x

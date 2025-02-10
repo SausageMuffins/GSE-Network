@@ -4,7 +4,7 @@ import argparse
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from model import GSENet  # Import GSENet model
-from dataset import GSEDataLoader  # Import dataset loader
+from dataset import GSEDataLoader, pad_collate_fn  # Import dataset loader
 from losses import GSENetSTFTLoss  # Import custom STFT loss
 from google.cloud import storage  # For Google Cloud Storage (optional)
 
@@ -61,12 +61,14 @@ def main(args):
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=4,
+        collate_fn=pad_collate_fn,
     )
     val_loader = DataLoader(
         GSEDataLoader(args.data_path, split="val"),
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=4,
+        collate_fn=pad_collate_fn,
     )
 
     # Initialize model
