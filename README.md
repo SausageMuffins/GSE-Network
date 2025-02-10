@@ -2,17 +2,19 @@
 
 This repository contains an implementation of the **Guided Speech Enhancement Network (GSENet)** as described in [Yang et al., "Guided Speech Enhancement Network," ICASSP 2023](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10096763&isnumber=10094560). GSENet is a U-Net–like architecture designed for multi-microphone speech enhancement that leverages both beamformed outputs and raw microphone signals to produce high-quality enhanced speech.
 
+
+
 ## Table of Contents
 
 - [Features](#features)
 - [Architecture](#architecture)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Dataset](#dataset)
   - [Local Training](#local-training)
   - [Google Cloud Training](#google-cloud-training)
-- [Dataset](#dataset)
+- 
 - [References](#references)
-- [License](#license)
 
 ## Features
 
@@ -68,9 +70,8 @@ pip install -r requirements.txt
 
 ## Training
 
-
+### Dataset
 Dataset Structure:
-
 ```
 data/
   train/
@@ -112,8 +113,6 @@ This command:
 
 ### Google Cloud Training
 
-Follow these steps to train on GCP:
-
 Upload Your Data to Google Cloud Storage (GCS):
 1. Create a GCS bucket (e.g., my-gsenet-data) in the Google Cloud Console.
 2. Upload your local data folder:
@@ -148,8 +147,11 @@ Post-Training:
 - Retrieve your model checkpoints from the specified checkpoint directory or GCS bucket.
 - Clean up resources to avoid extra costs.
 
-# Reference 
+# References
 
-Y. Yang et al., "Guided Speech Enhancement Network," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: 10.1109/ICASSP49357.2023.10096763.Abstract: High quality speech capture has been widely studied for both voice communication and human computer interface reasons. To improve the capture performance, we can often find multi-microphone speech enhancement techniques deployed on various devices. Multi-microphone speech enhancement problem is often decomposed into two decoupled steps: a beamformer that provides spatial filtering and a single-channel speech enhancement model that cleans up the beamformer output. In this work, we propose a speech enhancement solution that takes both the raw microphone and beamformer outputs as the input for an ML model. We devise a simple yet effective training scheme that allows the model to learn from the cues of the beamformer by contrasting the two inputs and greatly boost its capability in spatial rejection, while conducting the general tasks of denoising and dereverberation. The proposed solution takes advantage of classical spatial filtering algorithms instead of competing with them. By design, the beamformer module then could be selected separately and does not require a large amount of data to be optimized for a given form factor, and the network model can be considered as a standalone module which is highly transferable independently from the microphone array. We name the ML module in our solution as GSENet, short for Guided Speech Enhancement Network. We demonstrate its effectiveness on real world data collected on multi-microphone devices in terms of the suppression of noise and interfering speech. keywords: {Training;Performance evaluation;Noise reduction;Speech enhancement;Signal processing;Filtering algorithms;Real-time systems;multi-microphone speech enhancement;speech denoising;neural spatial filtering;beamforming},URL: https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10096763&isnumber=10094560
+Y. Yang et al., "Guided Speech Enhancement Network," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: 10.1109/ICASSP49357.2023.10096763.
 
+*Abstract:* High quality speech capture has been widely studied for both voice communication and human computer interface reasons. To improve the capture performance, we can often find multi-microphone speech enhancement techniques deployed on various devices. Multi-microphone speech enhancement problem is often decomposed into two decoupled steps: a beamformer that provides spatial filtering and a single-channel speech enhancement model that cleans up the beamformer output. In this work, we propose a speech enhancement solution that takes both the raw microphone and beamformer outputs as the input for an ML model. We devise a simple yet effective training scheme that allows the model to learn from the cues of the beamformer by contrasting the two inputs and greatly boost its capability in spatial rejection, while conducting the general tasks of denoising and dereverberation. The proposed solution takes advantage of classical spatial filtering algorithms instead of competing with them. By design, the beamformer module then could be selected separately and does not require a large amount of data to be optimized for a given form factor, and the network model can be considered as a standalone module which is highly transferable independently from the microphone array. We name the ML module in our solution as GSENet, short for Guided Speech Enhancement Network. We demonstrate its effectiveness on real world data collected on multi-microphone devices in terms of the suppression of noise and interfering speech. 
+
+keywords: {Training;Performance evaluation;Noise reduction;Speech enhancement;Signal processing;Filtering algorithms;Real-time systems;multi-microphone speech enhancement;speech denoising;neural spatial filtering;beamforming},URL: https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10096763&isnumber=10094560
 
