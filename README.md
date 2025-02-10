@@ -13,7 +13,6 @@ This repository contains an implementation of the **Guided Speech Enhancement Ne
   - [Dataset](#dataset)
   - [Local Training](#local-training)
   - [Google Cloud Training](#google-cloud-training)
-- 
 - [References](#references)
 
 ## Features
