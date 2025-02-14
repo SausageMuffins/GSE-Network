@@ -149,6 +149,12 @@ Post-Training:
 - Retrieve your model checkpoints from the specified checkpoint directory or GCS bucket.
 - Clean up resources to avoid extra costs.
 
+
+## Evaluation
+
+'export PYTORCH_ENABLE_MPS_FALLBACK=1'
+
+
 # References
 
 Y. Yang et al., "Guided Speech Enhancement Network," ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Rhodes Island, Greece, 2023, pp. 1-5, doi: 10.1109/ICASSP49357.2023.10096763.

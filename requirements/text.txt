@@ -1,0 +1,4 @@
+pystoi
+pesq
+torchaudio
+numpy
