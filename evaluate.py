@@ -138,9 +138,9 @@ def evaluate_recording(recording_path, model, device, sample_rate=16000):
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the GSENet speech enhancement model.")
-    parser.add_argument("--test_folder", type=str, default="test",
+    parser.add_argument("--test_folder", type=str, default="data/test",
                         help="Path to the folder containing test recordings directories.")
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/gsenet_model.ckpt",
+    parser.add_argument("--checkpoint", type=str, default="checkpoints/gsenet_model_v2.ckpt",
                         help="Path to the model checkpoint file.")
     parser.add_argument("--sample_rate", type=int, default=16000,
                         help="Sample rate of the audio recordings.")
